@@ -1,7 +1,7 @@
 package io.nadilas.deepstream.orpcjava
 
-import com.google.gson.Gson
 import io.deepstream.*
+import io.nadilas.deepstream.orpcjava.example.generated.convertDataToClass
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.core.annotation.AnnotationUtils
@@ -63,7 +63,7 @@ class SessionManager private constructor() {
     /**
      * A shorthand method for finding a {@link ISession session} object instance based on its uuid and casting it directly
      */
-    fun <R : ISession> find(uuid: String): R? = allSessions.find { it.sessionUuid == uuid } as R
+    fun <R : ISession> find(uuid: String): R? = allSessions.find { it.sessionUuid == uuid } as R?
 }
 
 /**
@@ -85,15 +85,17 @@ data class DefaultSession(override val sessionUuid: String, val requestData: Any
 /**
  * The base SessionProvider implementation taking care of session relevant registering and unregistering
  */
-open abstract class SessionProvider : ConnectionStateListener {
-    constructor(dsClient: DeepstreamClient) {
+open abstract class SessionProvider {
+    constructor(dsClient: DeepstreamClient, clientMode: ClientMode) {
         this.dsClient = dsClient
+        this.clientMode = clientMode
         this.providerConstructors = arrayListOf()
         this.providerInstances = hashMapOf()
         this.sessionProviderMethodAddresses = HashMap()
     }
 
     protected val dsClient: DeepstreamClient
+    protected val clientMode: ClientMode
     private val logger: Logger = LoggerFactory.getLogger(SessionProvider::class.java)
     private val providerConstructors: MutableList<KFunction0<IServiceProvider>>
     private val providerInstances: HashMap<String, MutableList<IServiceProvider>>
@@ -101,49 +103,15 @@ open abstract class SessionProvider : ConnectionStateListener {
     private val sessionHearbeatThreads: HashMap<String, Thread> = hashMapOf()
 
     /**
-     * This override of the connectionStateChanged method by default handles the new states. Once the connection is open, it registers the "createSession" method.
-     *
-     * The states are handled like
-     * OPEN: registers the "createSession" method, once the connection is opened
-     * CLOSED: unregisters the "createSession" method, since the connection is closed
-     * ERROR: unregisters the "createSession" method
-     * RECONNECTING: unregisters the "createSession" method
-     *
-     * If you want to provide a different implementation, please override this method
-     */
-    override fun connectionStateChanged(newState: ConnectionState?) {
-        when (newState) {
-            ConnectionState.OPEN -> {
-                provideSessionManagerMethods()
-            }
-            ConnectionState.CLOSED -> {
-                dsClient.rpcHandler.unprovide(CREATE_SESSION_METHOD_NAME)
-                dsClient.rpcHandler.unprovide(DESTROY_SESSION_METHOD_NAME)
-            }
-            ConnectionState.ERROR -> {
-                dsClient.rpcHandler.unprovide(CREATE_SESSION_METHOD_NAME)
-                dsClient.rpcHandler.unprovide(DESTROY_SESSION_METHOD_NAME)
-            }
-            ConnectionState.RECONNECTING -> {
-                dsClient.rpcHandler.unprovide(CREATE_SESSION_METHOD_NAME)
-                dsClient.rpcHandler.unprovide(DESTROY_SESSION_METHOD_NAME)
-            }
-        }
-    }
-
-    /**
      * The default constructor receives a number of IServiceProvider factory methods and adds them to the session pool
      *
      * Regsiters a connextionState listener on the deepstream client
      */
-    constructor(dsClient: DeepstreamClient, vararg providers: KFunction0<IServiceProvider>) : this(dsClient) {
+    constructor(dsClient: DeepstreamClient, clientMode: ClientMode = ClientMode.Client, vararg providers: KFunction0<IServiceProvider>) : this(dsClient, clientMode) {
         register(*providers)
 
-        // add listening to connection changes
-        dsClient.addConnectionChangeListener(this)
-
         // if already open at creating provider -- create session
-        if(dsClient.connectionState == ConnectionState.OPEN) {
+        if(dsClient.connectionState == ConnectionState.OPEN && clientMode == ClientMode.Provider) {
             provideSessionManagerMethods()
         }
     }
@@ -258,8 +226,6 @@ open abstract class SessionProvider : ConnectionStateListener {
      * on the rpcHandler from this client.
      */
     fun unregister() {
-        // self cleanup
-        dsClient.removeConnectionChangeListener(this)
         // remove session create method provider
         dsClient.rpcHandler.unprovide(CREATE_SESSION_METHOD_NAME)
         dsClient.rpcHandler.unprovide(DESTROY_SESSION_METHOD_NAME)
@@ -351,17 +317,26 @@ open abstract class SessionProvider : ConnectionStateListener {
 
     private fun registerHearbeatCheck(sessionId: String) {
         val hbthread = Thread({
-            val heartBeatAddress = "${sessionId}/$HEARTBEAT_CHECK_ADDRESS"
-            var healthOK = true
-            while (!healthOK) {
-                Thread.sleep(HEARTBEAT_CHECK_INTERVALS)
-                val rpcResult = dsClient.rpcHandler.make(heartBeatAddress, sessionId)
-                if(!rpcResult.success() || rpcResult.data == null)
-                    healthOK = false
-            }
+            try {
+                val heartBeatAddress = "${sessionId}/$HEARTBEAT_CHECK_ADDRESS"
+                var healthOK = true
+                while (healthOK) {
+                    Thread.sleep(HEARTBEAT_CHECK_INTERVALS)
+                    val rpcResult = dsClient.rpcHandler.make(heartBeatAddress, sessionId)
+                    if(!rpcResult.success() || rpcResult.data == null)
+                        healthOK = false
+                }
 
-            logger.warn("Session failed to respond to callback. Closing session: $sessionId")
-            unregisterSessionMethods(SessionManager.instance.find(sessionId)!!)
+                logger.warn("Session failed to respond to callback. Closing session: $sessionId")
+
+                val iSession = SessionManager.instance.find<ISession>(sessionId)
+                if(iSession != null)
+                    unregisterSessionMethods(iSession!!)
+                else
+                    logger.debug("Session $sessionId has previously been removed. No need for cleanup")
+            } catch(e: InterruptedException) {
+                logger.trace("heartbeat thread has been interrupted. ${e.message}")
+            }
         })
         hbthread.start()
         sessionHearbeatThreads.put(sessionId, hbthread)
@@ -371,12 +346,16 @@ open abstract class SessionProvider : ConnectionStateListener {
         return RpcRequestedListener { rpcName, input, rpcResponse ->
             val inputClass = method.parameterTypes[0] // only has one parameter
 
-            val gson = Gson()
-            val jstr = gson.toJson(input)
-            val castInput = gson.fromJson(jstr, inputClass)
+            val convertDataToClass = input.convertDataToClass(inputClass)
 
-            val invoke = method.invoke(provider, castInput)
-            rpcResponse.send(invoke)
+            try {
+                val invoke = method.invoke(provider, convertDataToClass)
+                rpcResponse.send(invoke)
+            } catch(e: BusyException) {
+                rpcResponse.reject() // simply reject since the server is busy
+            } catch(e: Exception) {
+                rpcResponse.error("Failed to process $rpcName. Error=${e.message}")
+            }
         }
     }
 
@@ -433,6 +412,8 @@ open abstract class SessionProvider : ConnectionStateListener {
 
         if(success) {
             sessionProviderMethodAddresses.remove(sessionId) // session can be cleaned up
+            val thread = sessionHearbeatThreads[sessionId]
+            thread!!.interrupt()
             sessionHearbeatThreads.remove(sessionId)
         }
 
@@ -445,8 +426,7 @@ open abstract class SessionProvider : ConnectionStateListener {
     fun listProvidedMethods(): HashMap<String, HashMap<String, MutableList<String>>> = sessionProviderMethodAddresses.clone() as HashMap<String, HashMap<String, MutableList<String>>>
 }
 
-
-class DefaultSessionProvider(dsClient: DeepstreamClient, vararg providers: KFunction0<IServiceProvider>) : SessionProvider(dsClient, *providers) {
+class DefaultSessionProvider(dsClient: DeepstreamClient, clientMode: ClientMode, vararg providers: KFunction0<IServiceProvider>) : SessionProvider(dsClient, clientMode, *providers) {
     val logger = LoggerFactory.getLogger(DefaultSessionProvider::class.java)
 
     /**

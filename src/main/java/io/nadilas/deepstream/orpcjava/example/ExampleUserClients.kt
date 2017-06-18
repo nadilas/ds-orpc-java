@@ -13,6 +13,7 @@ import io.nadilas.deepstream.orpcjava.example.generated.GeneratedGlobalDummyProv
 import io.nadilas.deepstream.orpcjava.example.generated.messages.DummyProviderInput
 import io.nadilas.deepstream.orpcjava.example.generated.messages.DummyProviderOutput
 import io.nadilas.deepstream.orpcjava.mappedRpcHandler
+import kotlin.concurrent.thread
 
 /**
  * Created by janosveres on 09.06.17.
@@ -51,7 +52,14 @@ fun main(args: Array<String>) {
         } catch(e: Exception) {
             println("failed to get dummy session response. Error=${e.message}")
         }
+
+        // dummy wait
+        Thread.sleep(5000)
+        rpcHandler.closeSession()
     } catch(e: Exception) {
         deepstream.close()
+    } finally {
+        deepstream.close()
+        System.exit(0)
     }
 }

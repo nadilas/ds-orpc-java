@@ -21,7 +21,7 @@ import kotlin.reflect.KFunction0
  * This example is using deestream's record list instead of the internal SessionManager to store the sessions
  * belonging to this client in deepstream.
  */
-class CustomSessionProvider(dsClient: DeepstreamClient, vararg providers: KFunction0<IServiceProvider>) : SessionProvider(dsClient, *providers) {
+class CustomSessionProvider(dsClient: DeepstreamClient, clientMode: ClientMode, vararg providers: KFunction0<IServiceProvider>) : SessionProvider(dsClient, clientMode, *providers) {
     private val sessionIdRecordList = dsClient.uid + "/sessions"
 
     /**
@@ -105,7 +105,11 @@ data class UserSession(override val sessionUuid: String, val accessToken: String
     }
 }
 
-class CustomProtoRpcHandlerImplementation(override val dsClient: DeepstreamClient, override var sessionProvider: SessionProvider) : IProtoRpcHandler {
+class CustomProtoRpcHandlerImplementation(override val dsClient: DeepstreamClient, override val clientMode: ClientMode, override var sessionProvider: SessionProvider) : IProtoRpcHandler {
+    override fun closeSession() {
+        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
+    }
+
     override fun registerCallback(defaultHeartbeatCallbackImpl: ISessionServiceCallback) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
@@ -119,10 +123,6 @@ class CustomProtoRpcHandlerImplementation(override val dsClient: DeepstreamClien
         }
 
         return null // no session could be created
-        TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
-    }
-
-    override fun connectionStateChanged(p0: ConnectionState?) {
         TODO("not implemented") //To change body of created functions use File | Settings | File Templates.
     }
 

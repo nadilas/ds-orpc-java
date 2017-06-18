@@ -10,9 +10,11 @@ import com.google.gson.JsonObject
 import io.deepstream.ConnectionState
 import io.deepstream.DeepstreamClient
 import io.deepstream.RpcRequestedListener
+import io.nadilas.deepstream.orpcjava.example.generated.convertDataToClass
 import org.slf4j.LoggerFactory
 import org.springframework.core.annotation.AnnotationUtils
 import org.springframework.util.StringUtils
+import org.springframework.util.TypeUtils
 import java.lang.reflect.Method
 import java.lang.reflect.Modifier
 import java.util.*
@@ -24,7 +26,7 @@ import kotlin.reflect.KFunction0
  *
  * The default behaviour is to cast down the incoming data to the class of the input class of the object
  */
-class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessionProvider: SessionProvider = DefaultSessionProvider(dsClient)) : IProtoRpcHandler {
+class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, override val clientMode: ClientMode = ClientMode.Client, sessionProvider: SessionProvider = DefaultSessionProvider(dsClient, clientMode)) : IProtoRpcHandler {
     private var _session : ISession? = null
     var session: ISession?
         get() = _session
@@ -32,16 +34,11 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
             _session = value
         }
 
-    override fun connectionStateChanged(newState: ConnectionState?) {
-        when(newState) {
-            ConnectionState.OPEN -> providerMethodListeners.forEach { dsClient.rpcHandler.provide(it.key, it.value) }
-        }
-    }
-
     private val logger = LoggerFactory.getLogger(DefaultProtoRpcHandlerImpl::class.java)
     private val providerMethodAddresses: HashMap<String, MutableList<String>> = hashMapOf()
     private val providerInstances: MutableList<IServiceProvider> = ArrayList()
     private val providerMethodListeners: HashMap<String, RpcRequestedListener> = hashMapOf()
+    private val registeredCallbacks: MutableList<String> = arrayListOf()
 
     /**
      * Upon setting a new sessionProvider, the previous one deregisters
@@ -79,6 +76,7 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
      * This method constructs and returns an RpcRequestedListener object which will be called when an rpc method request
      * is made from the clients.
      *
+     * The request is not acknowledged. You have to do it in your implementation
      * This implementation parses the input object to the provided class - if fails to do so, returns an error to the client
      *
      * When the input object is parsed, the method instance is called with 2 parameters:
@@ -94,13 +92,11 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
                 rpcResponse.error("There is no method handler defined for $rpcName")
             }
             else {
-                val inputClass = method.parameterTypes[0] // can only have 1 parameter
-                val data = parseDataClass(requestData, inputClass)
                 try {
+                    val data = parseDataClass(requestData, method.parameterTypes[0]) // can only have 1 parameter based on protobuf specification
                     method.invoke(provider, data, rpcResponse)
                 } catch (e: Exception) {
-                    val errMsg = e.message
-                    rpcResponse.error("Request failed: $errMsg")
+                    rpcResponse.error("Request failed: ${e.message}")
                 }
             }
         }
@@ -119,8 +115,7 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
                 if (requestData == null) {
                     rpcResponse.error("RequestData has not been provided")
                 }
-                val javaClass = method.parameterTypes[0] // can only have 1 parameter
-                val data = parseDataClass(requestData, javaClass)
+                val data = parseDataClass(requestData, method.parameterTypes[0]) // can only have 1 parameter based on protobuf specification
 
                 // invoke the method itself
                 try {
@@ -131,28 +126,17 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
                     // the method decided that it cannot handle any more requests
                     rpcResponse.reject()
                 } catch(e: Exception) {
-                    val errMsg = e.message
-                    rpcResponse.error("errorString: $errMsg")
+                    rpcResponse.error("errorString: ${e.message}")
                 }
             }
         }
     }
 
     /**
-     * todo
-     * This method must be override if you are working with a serialization library other than Jackson
+     * This method must be override if you are working with a serialization library other than Gson
      */
-    protected fun parseDataClass(requestData: Any, java: Class<out Any>): Any? {
-        val requestdataClassName = requestData.javaClass.simpleName
-        logger.debug("RPC Request, parsing data from: $requestdataClassName")
-        if(requestData.javaClass == JsonObject::class.java) {
-            val jobj = requestData as JsonObject
-            val gson = Gson()
-            val jstr = gson.toJson(jobj)
-            return gson.fromJson(jstr, java)
-        } else {
-            return java.cast(requestData)
-        }
+    protected fun parseDataClass(requestData: Any, javaClass: Class<*>): Any? {
+        return requestData.convertDataToClass(javaClass)
     }
 
     /**
@@ -179,8 +163,9 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
             //val providerName = it.declaringClass.simpleName // previously provider.javaClass.simpleName
             val rpcQualifiedName = "$providerName/$rpcName"
 
-            // decide which listener to use
-            val listener = if(providerFactory.javaClass.isAssignableFrom(IDirectServiceProvider::class.java))
+            // todo decide which listener to use IDirectServiceProvider is not picked up
+            var assignable = TypeUtils.isAssignable(provider.javaClass, IDirectServiceProvider::class.java)
+            val listener = if(provider.javaClass.isAssignableFrom(IDirectServiceProvider::class.java))
                 detailedRequestedListener(rpcQualifiedName, it, provider)
             else
                 requestedListener(rpcQualifiedName, it, provider)
@@ -256,13 +241,15 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
             }
 
             return this.session as R?
+        } else {
+            logger.error("Failed to start session. Error=${rpcResult.data}")
         }
 
         return null
     }
 
     override fun registerCallback(callbackImpl: ISessionServiceCallback) {
-        val addressBase = "${callbackImpl.session.sessionUuid}/"
+        val addressBase = "${callbackImpl.session.sessionUuid}"
         val rpcMethods = callbackImpl.javaClass.declaredMethods.filter { it -> it.modifiers == Modifier.PUBLIC && AnnotationUtils.findAnnotation(it, RpcMethod::class.java) != null }
         rpcMethods.forEach {
             val rpcMethod = AnnotationUtils.findAnnotation(it, RpcMethod::class.java)
@@ -271,7 +258,8 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
             // provide the method
             dsClient.rpcHandler.provide(rpcQualifiedName, { rpcName, input, response ->
                 response.ack()
-                val inputData = parseDataClass(input, it.parameterTypes[0].javaClass)
+                val inputData = parseDataClass(input, it.parameterTypes[0])
+                logger.info("RPC Call: $rpcName with: $input")
                 try {
                     val result = it.invoke(callbackImpl, inputData)
                     response.send(result)
@@ -280,8 +268,31 @@ class DefaultProtoRpcHandlerImpl(override val dsClient: DeepstreamClient, sessio
                 }
             })
 
+            logger.info("Registered callback: $rpcQualifiedName")
+            registeredCallbacks.add(rpcQualifiedName)
             // todo register the method so it can be removed, when the session closes
         }
+    }
+
+    override fun closeSession() {
+        if(session == null) return // nothing to do here
+
+        // close session itself
+        val rpcResult = dsClient.rpcHandler.make(DESTROY_SESSION_METHOD_NAME, session!!.sessionUuid)
+        if(rpcResult.success()) {
+            logger.info("Destroyed session ${session!!.sessionUuid}")
+
+            // remove callbacks
+            val rcbi = registeredCallbacks.iterator()
+            while(rcbi.hasNext())
+            {
+                val nextCb = rcbi.next()
+                dsClient.rpcHandler.unprovide(nextCb)
+                logger.info("Unregistered callback: $nextCb")
+                rcbi.remove()
+            }
+        }
+
     }
 
     /**

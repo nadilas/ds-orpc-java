@@ -40,7 +40,7 @@ class ExampleService101 {
         deepstreamClient.login()
 
         // Retrieving the RpcHandler extension
-        rpcHandler = deepstreamClient.mappedRpcHandler()
+        rpcHandler = deepstreamClient.mappedRpcHandler(ClientMode.Provider)
 
         // Register global providers and session providers from one call, session dependant providers will be redirected to SessionManager
         rpcHandler.register(::GlobalDummyProviderImpl, ::GlobalDummyProvider2Impl, ::SessionDummyProviderImpl)
@@ -78,11 +78,6 @@ class ExampleService101 {
 
 fun main(args: Array<String>) {
     val service = ExampleService101()
-
-    // simulate running server
-    Thread.sleep(150000)
-
-    service.shutdown()
 }
 
 class AdvancedExampleService {
@@ -103,10 +98,11 @@ class AdvancedExampleService {
         deepstreamClient.login()
         // or with a custom ProtoRpcHandler implementation
         //var rpcHandler = deepstreamClient.mappedRpcHandler(::DefaultProtoRpcHandlerImpl)
-        deepstreamClient.mappedRpcHandler(::DefaultProtoRpcHandlerImpl, CustomSessionProvider(deepstreamClient, ::SessionDummyProviderImpl))
+        val mode = ClientMode.Provider
+        deepstreamClient.mappedRpcHandler(mode, ::DefaultProtoRpcHandlerImpl, CustomSessionProvider(deepstreamClient, mode, ::SessionDummyProviderImpl))
 
         // or all in one line: with custom ProtoRpcHandler factory and custom SessionProvider factory and a set session compatible provider implementations
-        rpcHandler = deepstreamClient.mappedRpcHandler(::CustomProtoRpcHandlerImplementation, ::CustomSessionProvider, ::GlobalDummyProvider2Impl, ::GlobalDummyProviderImpl, ::SessionDummyProviderImpl)
+        rpcHandler = deepstreamClient.mappedRpcHandler(mode, ::CustomProtoRpcHandlerImplementation, ::CustomSessionProvider, ::GlobalDummyProvider2Impl, ::GlobalDummyProviderImpl, ::SessionDummyProviderImpl)
     }
 
     fun shutdown() {

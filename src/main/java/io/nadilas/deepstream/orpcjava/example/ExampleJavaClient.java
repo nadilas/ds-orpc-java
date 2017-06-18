@@ -19,7 +19,7 @@ public class ExampleJavaClient {
 
             client.login();
 
-            IProtoRpcHandler mappedRpcHandler = ExtensionsKt.mappedRpcHandler(client);
+            IProtoRpcHandler mappedRpcHandler = ExtensionsKt.mappedRpcHandler(client, ClientMode.Client);
 
             DefaultSession iSession = mappedRpcHandler.startSession();
 

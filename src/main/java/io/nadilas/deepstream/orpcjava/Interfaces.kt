@@ -57,12 +57,13 @@ interface ICallbackProvider {}
  * is a wrapper around the original RpcHandler object and provide additional functionality in terms of: object parsing,
  * automated handling, reflection based provide and unprovide calls.
  */
-interface IProtoRpcHandler : ConnectionStateListener {
+interface IProtoRpcHandler {
 
     /**
      * Stores the original Deepstream.io client
      */
     val dsClient: DeepstreamClient
+    val clientMode: ClientMode
     var sessionProvider: SessionProvider
 
     fun register(vararg providers: KFunction0<IServiceProvider>): IProtoRpcHandler
@@ -108,6 +109,8 @@ interface IProtoRpcHandler : ConnectionStateListener {
      * This method registers a callback with a live session
      */
     fun registerCallback(defaultHeartbeatCallbackImpl: ISessionServiceCallback)
+
+    fun closeSession()
 }
 
 
