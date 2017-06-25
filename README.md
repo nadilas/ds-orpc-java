@@ -4,6 +4,13 @@
 
 Deepstream.io object based RPC handler extension.
 
+- [Featrues](#featrues)
+- [Todo](#todo)
+- [Usage in Kotlin](#usage-in-kotlin)
+  - [Compiling source from protobuf definitions](#compiling-source-from-protobuf-definitions)
+  - [Creating a Service Provider](#creating-a-service-provider)
+  - [Using the endpoints in a client](#using-the-endpoints-in-a-client)
+
 ### Featrues
 
 - `interface` implementations as provider classes
@@ -90,7 +97,13 @@ The following classes in the above service are implementations of the generated 
 - GlobalDummyProvider2Impl implements GlobalDummyProvider2
 - SessionDummyProviderImpl implements SessionDummyProviderImpl
 
+#### Using the endpoints in a client
+
 Now that the server is started and providing global and session endpoints as well, let's take a look at an example client, which would use these endpoints:
+
+The following classes are generated from the protobuf definitions:
+- GeneratedGlobalDummyProviderConsumer - a consumer implementation with all the methods of the GlobalDummyProvider interface
+- GeneratedAllServiceConsumer - an all-in-one consumer providing access to all consumer implementations and through that to all methods
 
 ```kotlin
 fun main(args: Array<String>) {
