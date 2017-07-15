@@ -6,7 +6,7 @@ apply plugin: 'kotlin'
 apply plugin: 'maven'
 
 group = 'io.nadilas.deepstream'
-version = '1.0-SNAPSHOT'
+version = '0.0.1'
 
 description = """"""
 
