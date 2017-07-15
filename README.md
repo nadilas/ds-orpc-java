@@ -1,4 +1,4 @@
-![travis](https://travis-ci.org/nadilas/ds-orpc-java.svg?branch=master)
+[![CircleCI](https://circleci.com/gh/nadilas/ds-orpc-java.svg?style=shield)](https://circleci.com/gh/nadilas/ds-orpc-java)
 
 # ds-orpc-java
 
