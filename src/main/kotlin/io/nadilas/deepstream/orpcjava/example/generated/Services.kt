@@ -7,7 +7,6 @@ import com.google.gson.JsonObject
 import com.google.gson.reflect.TypeToken
 import io.deepstream.DeepstreamClient
 import io.deepstream.RpcResponse
-import io.nadilas.deepstream.orpcjava.*
 import io.nadilas.deepstream.orpcjava.example.generated.messages.DummyProviderInput
 import io.nadilas.deepstream.orpcjava.example.generated.messages.DummyProviderOutput
 import org.slf4j.LoggerFactory
