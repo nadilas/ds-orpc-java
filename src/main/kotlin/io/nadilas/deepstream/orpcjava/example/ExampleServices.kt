@@ -6,9 +6,13 @@
 package io.nadilas.deepstream.orpcjava.example
 
 import io.deepstream.DeepstreamClient
+import io.nadilas.deepstream.orpcjava.ClientMode
+import io.nadilas.deepstream.orpcjava.DefaultProtoRpcHandlerImpl
+import io.nadilas.deepstream.orpcjava.IProtoRpcHandler
 import io.nadilas.deepstream.orpcjava.example.services.GlobalDummyProvider2Impl
 import io.nadilas.deepstream.orpcjava.example.services.GlobalDummyProviderImpl
 import io.nadilas.deepstream.orpcjava.example.services.SessionDummyProviderImpl
+import io.nadilas.deepstream.orpcjava.mappedRpcHandler
 import org.slf4j.LoggerFactory
 
 /**

@@ -1,8 +1,8 @@
 package io.nadilas.deepstream.orpcjava.example
 
-import io.deepstream.ConnectionState
 import io.deepstream.DeepstreamClient
 import io.deepstream.RpcRequestedListener
+import io.nadilas.deepstream.orpcjava.*
 import org.slf4j.LoggerFactory
 import org.springframework.util.StringUtils
 import java.lang.reflect.Method

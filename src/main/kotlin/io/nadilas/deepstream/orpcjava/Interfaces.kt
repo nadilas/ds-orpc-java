@@ -1,6 +1,5 @@
 package io.nadilas.deepstream.orpcjava
 
-import io.deepstream.ConnectionStateListener
 import io.deepstream.DeepstreamClient
 import io.deepstream.RpcRequestedListener
 import java.lang.reflect.Method

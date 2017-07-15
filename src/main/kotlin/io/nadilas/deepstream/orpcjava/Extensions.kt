@@ -66,21 +66,27 @@ fun <T : IServiceProvider, R : IProtoRpcHandler, S : SessionProvider> Deepstream
                                                                                                         sessionProviderFactory: KFunction3<DeepstreamClient, ClientMode, Array<out KFunction0<IServiceProvider>>, S>,
                                                                                                         vararg sessionProviderFactories: KFunction0<T>): R = rpcHandlerFactory(this, clientMode, sessionProviderFactory(this, clientMode, sessionProviderFactories))
 
+@Suppress("UNUSED_VARIABLE")
 private fun extRpcHandler() {
     val deepstreamClient = DeepstreamClient("localhost:5555")
     // gets the default implementation of the wrapped rpc handler
     val rpcHandler = deepstreamClient.mappedRpcHandler()
 }
+
+@Suppress("UNUSED_VARIABLE")
 private fun extRpcHandler1() {
     val deepstreamClient = DeepstreamClient("localhost:5555")
     // gets an overriding instance of the wrapped rpc handler
     // with a "custom user provided implmentation type"
     val rpcHandler = deepstreamClient.mappedRpcHandler(ClientMode.Provider, ::DefaultProtoRpcHandlerImpl)
 }
+
+@Suppress("UNUSED_VARIABLE")
 private fun extRpcHandler2() {
     val deepstreamClient = DeepstreamClient("localhost:5555")
     val rpcHandler = deepstreamClient.mappedRpcHandler(ClientMode.Provider, ::DefaultProtoRpcHandlerImpl, DefaultSessionProvider(deepstreamClient, ClientMode.Provider, ::SessionDummyProviderImpl))
 }
+@Suppress("UNUSED_VARIABLE")
 private fun extRpcHandler3() {
     val deepstreamClient = DeepstreamClient("localhost:5555")
     val rpcHandler = deepstreamClient.mappedRpcHandler(ClientMode.Provider, ::DefaultProtoRpcHandlerImpl, ::DefaultSessionProvider, ::SessionDummyProviderImpl)

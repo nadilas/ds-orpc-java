@@ -13,7 +13,6 @@ import io.nadilas.deepstream.orpcjava.example.generated.GeneratedGlobalDummyProv
 import io.nadilas.deepstream.orpcjava.example.generated.messages.DummyProviderInput
 import io.nadilas.deepstream.orpcjava.example.generated.messages.DummyProviderOutput
 import io.nadilas.deepstream.orpcjava.mappedRpcHandler
-import kotlin.concurrent.thread
 
 /**
  * Created by janosveres on 09.06.17.
