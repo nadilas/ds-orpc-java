@@ -1,4 +1,5 @@
 [![CircleCI](https://circleci.com/gh/nadilas/ds-orpc-java.svg?style=shield)](https://circleci.com/gh/nadilas/ds-orpc-java)
+[![CircleCI](https://thumbs.dreamstime.com/z/background-texture-color-wax-crayons-random-pattern-abstract-29035891.jpg)](https://thumbs.dreamstime.com/z/background-texture-color-wax-crayons-random-pattern-abstract-29035891.jpg)
 
 # ds-orpc-java
 
